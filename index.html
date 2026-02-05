@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Transport Pro - Firebase Cloud</title>
+    <title>Daily Transport Pro - Secure Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,6 +16,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBhvd6j5mWKuZl2fM4AoOH15FcoqUGDejM",
@@ -23,20 +24,37 @@
             projectId: "truck-chat-d5de0",
             storageBucket: "truck-chat-d5de0.firebasestorage.app",
             messagingSenderId: "191337056448",
-            appId: "1:191337056448:web:42893e12d035df2daec525",
-            measurementId: "G-8XGR9158D9"
+            appId: "1:191337056448:web:42893e12d035df2daec525"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
 
         // Global access for script.js
         window.db = db;
+        window.auth = auth;
         window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy };
+        window.authTools = { signInWithEmailAndPassword, onAuthStateChanged, signOut };
         
-        // Trigger init function in script.js once Firebase is ready
         if (typeof initFirebase === "function") initFirebase();
+        if (typeof watchAuthState === "function") watchAuthState();
     </script>
+
+    <div id="login-overlay" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
+            <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-lock text-white text-2xl"></i>
+            </div>
+            <h2 class="text-2xl font-black mb-2 uppercase tracking-tight text-slate-800">Admin Access</h2>
+            <p class="text-slate-500 text-sm mb-6">Silakan login untuk mengelola logistik</p>
+            
+            <input type="email" id="loginEmail" placeholder="Email" class="w-full p-3 mb-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+            <input type="password" id="loginPassword" placeholder="Password" class="w-full p-3 mb-6 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+            
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 uppercase tracking-widest text-sm">Masuk Sekarang</button>
+        </div>
+    </div>
 
     <header class="bg-slate-900 text-white p-4 shadow-xl sticky top-0 z-50">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -47,10 +65,8 @@
                 <h1 class="text-xl font-black uppercase tracking-tight">Daily <span class="text-blue-400">Transport</span></h1>
             </div>
             <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="handleLogout()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-lg font-bold hover:bg-rose-600 transition-all"><i class="fa-solid fa-right-from-bracket mr-1"></i> Logout</button>
                 <button onclick="clearDoneTasks()" class="text-xs bg-rose-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-rose-700 transition-all">Clear Done</button>
-                <button onclick="exportToCSV()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-lg font-bold hover:bg-slate-600 transition">CSV</button>
-                <button onclick="downloadPDF()" class="text-xs bg-red-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-red-700 transition">PDF</button>
-                <button onclick="downloadImage()" class="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-indigo-700 transition">Image</button>
                 <button onclick="sendWhatsApp()" class="text-xs bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-emerald-700 transition"><i class="fab fa-whatsapp mr-1"></i> WA Report</button>
             </div>
         </div>
@@ -107,20 +123,6 @@
                         </select>
                     </div>
                     <button onclick="addTask()" class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all h-[46px]">Tambah</button>
-                </div>
-                
-                <div class="flex flex-1 items-end gap-3 w-full xl:w-auto border-t xl:border-t-0 xl:border-l border-slate-100 pt-4 xl:pt-0 xl:pl-4">
-                    <div class="flex-1 relative">
-                        <label class="text-[11px] font-black text-slate-500 uppercase ml-1">Pencarian / Tgl</label>
-                        <div class="relative">
-                            <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Ketik..." class="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm h-[46px]">
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                                <i class="fa-solid fa-calendar-days text-slate-400 cursor-pointer" onclick="document.getElementById('hiddenDateTrigger').showPicker()"></i>
-                                <input type="date" id="hiddenDateTrigger" onchange="pickSearchDate(this.value)" class="absolute opacity-0 w-0 h-0 pointer-events-none">
-                            </div>
-                        </div>
-                    </div>
-                    <button onclick="resetFilters()" class="text-sm text-blue-600 font-bold h-[46px] px-2 hover:bg-blue-50 rounded-lg">Reset</button>
                 </div>
             </div>
         </div>
