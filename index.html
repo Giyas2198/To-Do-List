@@ -18,27 +18,34 @@
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+        // PERBAIKAN: Double 'const firebaseConfig' sudah dihapus
         const firebaseConfig = {
-            apiKey: "AIzaSyBhvd6j5mWKuZl2fM4AoOH15FcoqUGDejM",
+            apiKey: "AIzaSyBhvD6j5mWKuZl2fM4AoOH15FcoqUGDejM",
             authDomain: "truck-chat-d5de0.firebaseapp.com",
             projectId: "truck-chat-d5de0",
             storageBucket: "truck-chat-d5de0.firebasestorage.app",
             messagingSenderId: "191337056448",
-            appId: "1:191337056448:web:42893e12d035df2daec525"
+            appId: "1:191337056448:web:42893e12d035df2daec525",
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
 
-        // Global access for script.js
-        window.db = db;
-        window.auth = auth;
-        window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy };
-        window.authTools = { signInWithEmailAndPassword, onAuthStateChanged, signOut };
-        
-        if (typeof initFirebase === "function") initFirebase();
-        if (typeof watchAuthState === "function") watchAuthState();
+            // Global access agar script.js bisa baca
+            window.db = db;
+            window.auth = auth;
+            window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy };
+            window.authTools = { signInWithEmailAndPassword, onAuthStateChanged, signOut };
+            
+            console.log("Firebase Siap!");
+            
+            // Jalankan pemantauan login
+            if (typeof watchAuthState === "function") watchAuthState();
+        } catch (error) {
+            console.error("Gagal memuat Firebase:", error);
+        }
     </script>
 
     <div id="login-overlay" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
