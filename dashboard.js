@@ -51,7 +51,6 @@ function renderChart(counts) {
             animation: { duration: 1000 }
         }
     });
-
     legendEl.innerHTML = '';
     dataLabels.forEach((label, i) => {
         legendEl.innerHTML += `
