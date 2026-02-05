@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Transport Pro - Firebase Cloud</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 leading-normal">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBhvd6j5mWKuZl2fM4AoOH15FcoqUGDejM",
+            authDomain: "truck-chat-d5de0.firebaseapp.com",
+            projectId: "truck-chat-d5de0",
+            storageBucket: "truck-chat-d5de0.firebasestorage.app",
+            messagingSenderId: "191337056448",
+            appId: "1:191337056448:web:42893e12d035df2daec525",
+            measurementId: "G-8XGR9158D9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Global access for script.js
+        window.db = db;
+        window.fs = { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy };
+        
+        // Trigger init function in script.js once Firebase is ready
+        if (typeof initFirebase === "function") initFirebase();
+    </script>
+
+    <header class="bg-slate-900 text-white p-4 shadow-xl sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-truck-fast text-white text-xl"></i>
+                </div>
+                <h1 class="text-xl font-black uppercase tracking-tight">Daily <span class="text-blue-400">Transport</span></h1>
+            </div>
+            <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="clearDoneTasks()" class="text-xs bg-rose-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-rose-700 transition-all">Clear Done</button>
+                <button onclick="exportToCSV()" class="text-xs bg-slate-700 text-white px-3 py-2 rounded-lg font-bold hover:bg-slate-600 transition">CSV</button>
+                <button onclick="downloadPDF()" class="text-xs bg-red-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-red-700 transition">PDF</button>
+                <button onclick="downloadImage()" class="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-indigo-700 transition">Image</button>
+                <button onclick="sendWhatsApp()" class="text-xs bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-emerald-700 transition"><i class="fab fa-whatsapp mr-1"></i> WA Report</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="flex flex-col lg:flex-row gap-4 mb-6">
+            <div class="lg:w-1/3 grid grid-cols-2 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-[11px] font-black text-slate-400 uppercase mb-1">Total Tugas</p>
+                    <h2 id="dash-total" class="text-4xl font-black text-slate-800">0</h2>
+                </div>
+                <div class="bg-emerald-50 p-5 rounded-2xl shadow-sm border border-emerald-100">
+                    <p class="text-[11px] font-black text-emerald-500 uppercase mb-1">Selesai</p>
+                    <h2 id="dash-done" class="text-4xl font-black text-emerald-600">0</h2>
+                </div>
+                <div class="bg-blue-50 p-5 rounded-2xl shadow-sm border border-blue-100">
+                    <p class="text-[11px] font-black text-blue-500 uppercase mb-1">Efisiensi</p>
+                    <h2 id="dash-perc" class="text-4xl font-black text-blue-600">0%</h2>
+                </div>
+                <div class="bg-rose-50 p-5 rounded-2xl shadow-sm border border-rose-100">
+                    <p class="text-[11px] font-black text-rose-500 uppercase mb-1">Evaluasi</p>
+                    <h2 id="dash-eval" class="text-4xl font-black text-rose-600">0</h2>
+                </div>
+            </div>
+
+            <div class="lg:w-2/3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+                <div class="w-1/3 h-32">
+                    <canvas id="jobDoughnutChart"></canvas>
+                </div>
+                <div id="chart-legend" class="w-2/3 pl-8 grid grid-cols-2 gap-x-6 gap-y-2"></div>
+            </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-md border border-slate-200 mb-6">
+            <div class="flex flex-col xl:flex-row gap-4 items-end">
+                <div class="flex flex-[3] w-full gap-3 items-end">
+                    <div class="flex-1">
+                        <label class="text-[11px] font-black text-slate-500 uppercase ml-1">Deskripsi Tugas</label>
+                        <input type="text" id="taskInput" placeholder="Ketik tugas baru..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all">
+                    </div>
+                    <div class="w-44">
+                        <label class="text-[11px] font-black text-blue-600 uppercase ml-1">Rencana Tgl</label>
+                        <input type="date" id="planDateInput" class="w-full px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl outline-none text-sm font-bold text-blue-700">
+                    </div>
+                    <div class="w-40">
+                        <label class="text-[11px] font-black text-slate-500 uppercase ml-1">Status</label>
+                        <select id="statusSelect" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                            <option value="outstanding">Outstanding</option>
+                            <option value="todo">To Do</option>
+                            <option value="progress">Progress</option>
+                            <option value="done" selected>Done</option>
+                            <option value="evaluation">Evaluation</option>
+                        </select>
+                    </div>
+                    <button onclick="addTask()" class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all h-[46px]">Tambah</button>
+                </div>
+                
+                <div class="flex flex-1 items-end gap-3 w-full xl:w-auto border-t xl:border-t-0 xl:border-l border-slate-100 pt-4 xl:pt-0 xl:pl-4">
+                    <div class="flex-1 relative">
+                        <label class="text-[11px] font-black text-slate-500 uppercase ml-1">Pencarian / Tgl</label>
+                        <div class="relative">
+                            <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Ketik..." class="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm h-[46px]">
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                <i class="fa-solid fa-calendar-days text-slate-400 cursor-pointer" onclick="document.getElementById('hiddenDateTrigger').showPicker()"></i>
+                                <input type="date" id="hiddenDateTrigger" onchange="pickSearchDate(this.value)" class="absolute opacity-0 w-0 h-0 pointer-events-none">
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="resetFilters()" class="text-sm text-blue-600 font-bold h-[46px] px-2 hover:bg-blue-50 rounded-lg">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 min-h-[450px]">
+            <div class="flex flex-col bg-slate-200/50 rounded-2xl border border-slate-200 p-2">
+                <div class="p-2 mb-2 flex justify-between items-center">
+                    <span class="text-xs font-black uppercase text-slate-500 tracking-wider">Outstanding</span>
+                    <span id="count-outstanding" class="bg-white text-slate-700 px-2 py-0.5 rounded-lg text-xs font-black shadow-sm border border-slate-100">0</span>
+                </div>
+                <div id="list-outstanding" class="space-y-2 overflow-y-auto custom-scrollbar flex-1"></div>
+            </div>
+            <div class="flex flex-col bg-blue-100/50 rounded-2xl border border-blue-100 p-2">
+                <div class="p-2 mb-2 flex justify-between items-center">
+                    <span class="text-xs font-black uppercase text-blue-600 tracking-wider">To Do</span>
+                    <span id="count-todo" class="bg-white text-blue-700 px-2 py-0.5 rounded-lg text-xs font-black shadow-sm border border-blue-100">0</span>
+                </div>
+                <div id="list-todo" class="space-y-2 overflow-y-auto custom-scrollbar flex-1"></div>
+            </div>
+            <div class="flex flex-col bg-amber-100/50 rounded-2xl border border-amber-200 p-2">
+                <div class="p-2 mb-2 flex justify-between items-center">
+                    <span class="text-xs font-black uppercase text-amber-600 tracking-wider">Progress</span>
+                    <span id="count-progress" class="bg-white text-amber-700 px-2 py-0.5 rounded-lg text-xs font-black shadow-sm border border-amber-100">0</span>
+                </div>
+                <div id="list-progress" class="space-y-2 overflow-y-auto custom-scrollbar flex-1"></div>
+            </div>
+            <div class="flex flex-col bg-emerald-100/50 rounded-2xl border border-emerald-200 p-2">
+                <div class="p-2 mb-2 flex justify-between items-center">
+                    <span class="text-xs font-black uppercase text-emerald-600 tracking-wider">Done</span>
+                    <span id="count-done" class="bg-white text-emerald-700 px-2 py-0.5 rounded-lg text-xs font-black shadow-sm border border-emerald-100">0</span>
+                </div>
+                <div id="list-done" class="space-y-2 overflow-y-auto custom-scrollbar flex-1"></div>
+            </div>
+            <div class="flex flex-col bg-rose-100/50 rounded-2xl border border-rose-200 p-2">
+                <div class="p-2 mb-2 flex justify-between items-center">
+                    <span class="text-xs font-black uppercase text-rose-600 tracking-wider">Eval</span>
+                    <span id="count-evaluation" class="bg-white text-rose-700 px-2 py-0.5 rounded-lg text-xs font-black shadow-sm border border-rose-100">0</span>
+                </div>
+                <div id="list-evaluation" class="space-y-2 overflow-y-auto custom-scrollbar flex-1"></div>
+            </div>
+        </div>
+
+        <div class="mt-6 mb-4">
+            <div class="bg-slate-900 text-white py-3 rounded-xl overflow-hidden border border-slate-700 shadow-lg">
+                <div id="running-text-container" class="whitespace-nowrap font-mono text-xs font-bold tracking-widest uppercase"></div>
+            </div>
+        </div>
+
+        <footer class="py-6 border-t border-slate-200 text-center">
+            <p class="text-slate-400 text-[10px] font-mono tracking-[0.2em] uppercase">
+                &copy; 2026 GIYAS | Daily Transport Logistics Optimized
+            </p>
+        </footer>
+    </main>
+
+    <script src="dashboard.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
